@@ -143,57 +143,47 @@ class AudioGenerator:
     
     def _generate_background_audio(self, duration_ms, background_type):
         """
-        Generate simple background audio based on type
+        Load and process background audio from local files
         
         Args:
             duration_ms (int): Duration in milliseconds
             background_type (str): Type of background audio
             
         Returns:
-            AudioSegment: Generated background audio
+            AudioSegment: Processed background audio
         """
         try:
-            if background_type == "classroom":
-                # Generate soft ambient noise
-                return self._generate_ambient_noise(duration_ms, volume=-20)
+            # Path to background audio files
+            background_audio_dir = "background_audio"
+            background_file = os.path.join(background_audio_dir, f"{background_type}.wav")
             
-            elif background_type == "cafe":
-                # Generate gentle ambient sound with some variation
-                base_noise = self._generate_ambient_noise(duration_ms, volume=-18)
-                # Add some subtle variations (coffee shop sounds)
-                variations = []
-                for _ in range(3):
-                    start = random.randint(0, max(1, duration_ms - 2000))
-                    tone = Sine(random.randint(200, 600)).to_audio_segment(duration=800)
-                    tone = tone - 25  # Quiet background chatter simulation
-                    variations.append((start, tone))
+            # Check if background audio file exists
+            if os.path.exists(background_file):
+                # Load the background audio file
+                background_audio = AudioSegment.from_wav(background_file)
                 
-                for start, tone in variations:
-                    base_noise = base_noise.overlay(tone, position=start)
+                # Adjust the duration to match the conversation
+                if len(background_audio) < duration_ms:
+                    # Loop the background audio if it's shorter than needed
+                    loops_needed = (duration_ms // len(background_audio)) + 1
+                    background_audio = background_audio * loops_needed
                 
-                return base_noise
-            
-            elif background_type == "park":
-                # Generate nature-like sounds
-                base_noise = self._generate_ambient_noise(duration_ms, volume=-22)
-                # Add some bird-like sounds
-                for _ in range(2):
-                    start = random.randint(0, max(1, duration_ms - 1000))
-                    chirp = Sine(random.randint(800, 1500)).to_audio_segment(duration=300)
-                    chirp = chirp - 20  # Bird sounds
-                    base_noise = base_noise.overlay(chirp, position=start)
+                # Trim to exact duration
+                background_audio = background_audio[:duration_ms]
                 
-                return base_noise
-            
-            elif background_type == "home":
-                # Subtle home background
-                return self._generate_ambient_noise(duration_ms, volume=-25)
+                # Reduce volume for background effect
+                background_audio = background_audio - 15  # Reduce by 15dB
+                
+                return background_audio
             
             else:
-                # Default quiet background
-                return self._generate_ambient_noise(duration_ms, volume=-30)
+                # If file doesn't exist, fallback to generated ambient noise
+                print(f"Warning: Background audio file not found: {background_file}")
+                print("Falling back to generated ambient noise")
+                return self._generate_ambient_noise(duration_ms, volume=-25)
                 
         except Exception as e:
+            print(f"Error loading background audio: {e}")
             # If background generation fails, return silence
             return AudioSegment.silent(duration=duration_ms)
     
