@@ -18,7 +18,7 @@ class AudioGenerator:
                 subscription=self.azure_speech_key, 
                 region=self.azure_region
             )
-            # Use natural English voices
+            # Default voice (will be changed based on voice type)
             self.speech_config.speech_synthesis_voice_name = "en-US-AriaNeural"
         else:
             self.speech_config = None
@@ -49,17 +49,27 @@ class AudioGenerator:
             for i, line in enumerate(conversation):
                 speaker = line.get('speaker', f'Speaker{i}')
                 text = line.get('text', '')
+                voice_type = line.get('voice_type', '男性')
                 
                 if not text.strip():
                     continue
                 
+                # Set voice based on voice type
+                voice_name = self._get_voice_name(voice_type)
+                
                 # Create a temporary WAV file for Azure Speech output
                 temp_wav_file = os.path.join(self.temp_dir, f"{speaker}_{i}_temp.wav")
                 
-                # Configure Azure Speech synthesis
+                # Configure Azure Speech synthesis with specific voice
+                speech_config_copy = speechsdk.SpeechConfig(
+                    subscription=self.azure_speech_key, 
+                    region=self.azure_region
+                )
+                speech_config_copy.speech_synthesis_voice_name = voice_name
+                
                 audio_config = speechsdk.audio.AudioOutputConfig(filename=temp_wav_file)
                 synthesizer = speechsdk.SpeechSynthesizer(
-                    speech_config=self.speech_config, 
+                    speech_config=speech_config_copy, 
                     audio_config=audio_config
                 )
                 
@@ -124,6 +134,24 @@ class AudioGenerator:
             
         except Exception as e:
             raise Exception(f"Failed to generate audio: {e}")
+    
+    def _get_voice_name(self, voice_type):
+        """
+        Get Azure Speech Services voice name based on voice type
+        
+        Args:
+            voice_type (str): Voice type in Japanese
+            
+        Returns:
+            str: Azure voice name
+        """
+        voice_mapping = {
+            "男性": "en-US-DavisNeural",      # Adult male
+            "女性": "en-US-AriaNeural",       # Adult female
+            "若い男性": "en-US-AndrewNeural",  # Young male
+            "若い女性": "en-US-EmmaNeural"     # Young female
+        }
+        return voice_mapping.get(voice_type, "en-US-AriaNeural")
     
     def _load_uploaded_background(self, uploaded_file, target_duration_ms):
         """

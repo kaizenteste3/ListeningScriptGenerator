@@ -143,7 +143,7 @@ def main():
             edited_conversation = []
             
             for i, line in enumerate(script_data.get('conversation', [])):
-                col1, col2, col3 = st.columns([2, 6, 1])
+                col1, col2, col3, col4 = st.columns([2, 4, 2, 1])
                 
                 with col1:
                     speaker = st.text_input(
@@ -161,6 +161,14 @@ def main():
                     )
                 
                 with col3:
+                    voice_type = st.selectbox(
+                        f"音声タイプ {i+1}",
+                        ["男性", "女性", "若い男性", "若い女性"],
+                        index=["男性", "女性", "若い男性", "若い女性"].index(line.get('voice_type', '男性')),
+                        key=f"edit_voice_{i}"
+                    )
+                
+                with col4:
                     st.write("")  # Spacing
                     if st.button("🗑️", key=f"delete_{i}", help="この行を削除"):
                         # Mark for deletion
@@ -173,7 +181,8 @@ def main():
                 if 'lines_to_delete' not in st.session_state or i not in st.session_state.lines_to_delete:
                     edited_conversation.append({
                         'speaker': speaker,
-                        'text': text
+                        'text': text,
+                        'voice_type': voice_type
                     })
             
             # Add new line button
@@ -187,7 +196,7 @@ def main():
             if 'new_lines_count' in st.session_state and st.session_state.new_lines_count > 0:
                 for j in range(st.session_state.new_lines_count):
                     new_idx = len(script_data.get('conversation', [])) + j
-                    col1, col2 = st.columns([2, 6])
+                    col1, col2, col3 = st.columns([2, 4, 2])
                     
                     with col1:
                         new_speaker = st.text_input(
@@ -202,10 +211,18 @@ def main():
                             key=f"new_text_{j}"
                         )
                     
+                    with col3:
+                        new_voice_type = st.selectbox(
+                            f"音声タイプ {j+1}",
+                            ["男性", "女性", "若い男性", "若い女性"],
+                            key=f"new_voice_{j}"
+                        )
+                    
                     if new_speaker and new_text:
                         edited_conversation.append({
                             'speaker': new_speaker,
-                            'text': new_text
+                            'text': new_text,
+                            'voice_type': new_voice_type
                         })
             
             # Save changes button
@@ -248,7 +265,8 @@ def main():
             for line in script_data.get('conversation', []):
                 speaker = line.get('speaker', 'Unknown')
                 text = line.get('text', '')
-                st.write(f"**{speaker}**: {text}")
+                voice_type = line.get('voice_type', '男性')
+                st.write(f"**{speaker}** ({voice_type}): {text}")
         
         # Audio generation section
         st.header("🎵 音声生成")

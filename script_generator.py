@@ -47,16 +47,19 @@ class ScriptGenerator:
                         - Use natural conversational flow with appropriate greetings and responses
                         - Include 4-8 lines of dialogue between 2-3 speakers
                         - Make the conversation realistic and engaging for teenagers
+                        - Assign appropriate voice types for each speaker
                         
                         Respond with JSON in this exact format:
                         {
                             "title": "Short descriptive title in English",
                             "situation": "Brief description of the situation in Japanese",
                             "conversation": [
-                                {"speaker": "Speaker name", "text": "English dialogue"},
-                                {"speaker": "Speaker name", "text": "English dialogue"}
+                                {"speaker": "Speaker name", "text": "English dialogue", "voice_type": "男性"},
+                                {"speaker": "Speaker name", "text": "English dialogue", "voice_type": "女性"}
                             ]
-                        }"""
+                        }
+                        
+                        Use these voice types: 男性 (adult male), 女性 (adult female), 若い男性 (young male), 若い女性 (young female)"""
                     },
                     {
                         "role": "user",
