@@ -58,10 +58,12 @@ def main():
     
     # Background audio options
     st.sidebar.subheader("背景音声の設定")
-    background_source = st.sidebar.radio(
-        "背景音声のソース",
-        ["生成された音声", "アップロードファイル"],
-        disabled=not enable_background_audio
+    
+    uploaded_background = st.sidebar.file_uploader(
+        "背景音声ファイルをアップロード",
+        type=["mp3", "wav"],
+        disabled=not enable_background_audio,
+        help="MP3またはWAV形式の背景音声ファイルをアップロードしてください"
     )
     
     # Background volume control
@@ -71,25 +73,12 @@ def main():
         max_value=0,
         value=-20,
         step=5,
-        disabled=not enable_background_audio,
+        disabled=not enable_background_audio or not uploaded_background,
         help="背景音声の音量を調整します。負の値ほど小さくなります。"
     )
     
-    if background_source == "生成された音声":
-        background_type = st.sidebar.selectbox(
-            "背景音声の種類",
-            ["classroom", "cafe", "park", "home"],
-            disabled=not enable_background_audio
-        )
-        uploaded_background = None
-    else:
-        background_type = None
-        uploaded_background = st.sidebar.file_uploader(
-            "背景音声ファイルをアップロード",
-            type=["mp3", "wav"],
-            disabled=not enable_background_audio,
-            help="MP3またはWAV形式の背景音声ファイルをアップロードしてください"
-        )
+    # Set background_type to None since we only use uploaded files
+    background_type = None
     
     # Main input
     st.header("📝 シーン入力")
@@ -151,8 +140,8 @@ def main():
                     # Generate audio
                     audio_files = audio_gen.generate_conversation_audio(
                         script_data.get('conversation', []),
-                        add_background=enable_background_audio,
-                        background_type=background_type if enable_background_audio else None,
+                        add_background=enable_background_audio and uploaded_background is not None,
+                        background_type=None,
                         uploaded_background=uploaded_background if enable_background_audio else None,
                         background_volume=background_volume if enable_background_audio else -20
                     )

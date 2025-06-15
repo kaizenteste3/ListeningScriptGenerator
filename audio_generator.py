@@ -102,25 +102,16 @@ class AudioGenerator:
             for segment in combined_segments:
                 combined_audio += segment
             
-            # Add background audio if requested
-            if add_background:
-                if uploaded_background:
-                    print(f"Adding uploaded background audio at {background_volume}dB")
-                    background_audio = self._load_uploaded_background(
-                        uploaded_background, len(combined_audio)
-                    )
-                    if background_audio:
-                        # Mix background at specified volume
-                        combined_audio = combined_audio.overlay(background_audio + background_volume)
-                        print(f"Uploaded background audio added successfully")
-                elif background_type and background_type != "none":
-                    print(f"Adding generated background audio: {background_type} at {background_volume}dB")
-                    background_audio = self._generate_background_audio(
-                        len(combined_audio), background_type
-                    )
+            # Add background audio if requested (only uploaded files)
+            if add_background and uploaded_background:
+                print(f"Adding uploaded background audio at {background_volume}dB")
+                background_audio = self._load_uploaded_background(
+                    uploaded_background, len(combined_audio)
+                )
+                if background_audio:
                     # Mix background at specified volume
                     combined_audio = combined_audio.overlay(background_audio + background_volume)
-                    print(f"Generated background audio added successfully")
+                    print(f"Uploaded background audio added successfully")
             
             # Export combined audio
             combined_file = os.path.join(self.temp_dir, "combined_conversation.wav")
