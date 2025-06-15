@@ -23,7 +23,7 @@ class AudioGenerator:
         else:
             self.speech_config = None
         
-    def generate_conversation_audio(self, conversation, add_background=False, background_type=None):
+    def generate_conversation_audio(self, conversation, add_background=False, background_type=None, uploaded_background=None):
         """
         Generate audio files from conversation script using Azure Speech Services
         
@@ -31,6 +31,7 @@ class AudioGenerator:
             conversation (list): List of conversation lines with speaker and text
             add_background (bool): Whether to add background audio
             background_type (str): Type of background audio to add
+            uploaded_background: Streamlit uploaded file object for custom background audio
             
         Returns:
             dict: Dictionary containing paths to generated audio files
@@ -101,14 +102,24 @@ class AudioGenerator:
                 combined_audio += segment
             
             # Add background audio if requested
-            if add_background and background_type and background_type != "none":
-                print(f"Adding background audio: {background_type}")
-                background_audio = self._generate_background_audio(
-                    len(combined_audio), background_type
-                )
-                # Mix background at lower volume (-20dB)
-                combined_audio = combined_audio.overlay(background_audio - 20)
-                print(f"Background audio added successfully")
+            if add_background:
+                if uploaded_background:
+                    print(f"Adding uploaded background audio")
+                    background_audio = self._load_uploaded_background(
+                        uploaded_background, len(combined_audio)
+                    )
+                    if background_audio:
+                        # Mix background at lower volume (-20dB)
+                        combined_audio = combined_audio.overlay(background_audio - 20)
+                        print(f"Uploaded background audio added successfully")
+                elif background_type and background_type != "none":
+                    print(f"Adding generated background audio: {background_type}")
+                    background_audio = self._generate_background_audio(
+                        len(combined_audio), background_type
+                    )
+                    # Mix background at lower volume (-20dB)
+                    combined_audio = combined_audio.overlay(background_audio - 20)
+                    print(f"Generated background audio added successfully")
             
             # Export combined audio
             combined_file = os.path.join(self.temp_dir, "combined_conversation.wav")
@@ -121,6 +132,50 @@ class AudioGenerator:
             
         except Exception as e:
             raise Exception(f"Failed to generate audio: {e}")
+    
+    def _load_uploaded_background(self, uploaded_file, target_duration_ms):
+        """
+        Load and process uploaded background audio file
+        
+        Args:
+            uploaded_file: Streamlit uploaded file object
+            target_duration_ms (int): Target duration in milliseconds
+            
+        Returns:
+            AudioSegment: Processed background audio
+        """
+        try:
+            # Save uploaded file to temporary location
+            temp_bg_file = os.path.join(self.temp_dir, f"uploaded_bg_{uploaded_file.name}")
+            with open(temp_bg_file, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            
+            # Load audio file
+            if uploaded_file.name.lower().endswith('.mp3'):
+                background_audio = AudioSegment.from_mp3(temp_bg_file)
+            elif uploaded_file.name.lower().endswith('.wav'):
+                background_audio = AudioSegment.from_wav(temp_bg_file)
+            else:
+                raise ValueError("Unsupported audio format")
+            
+            # Adjust duration to match conversation
+            bg_duration = len(background_audio)
+            if bg_duration < target_duration_ms:
+                # Loop the background audio if it's shorter than conversation
+                loops_needed = (target_duration_ms // bg_duration) + 1
+                background_audio = background_audio * loops_needed
+            
+            # Trim to exact duration
+            background_audio = background_audio[:target_duration_ms]
+            
+            # Clean up temporary file
+            os.remove(temp_bg_file)
+            
+            return background_audio
+            
+        except Exception as e:
+            print(f"Error loading uploaded background audio: {e}")
+            return None
     
     def _generate_background_audio(self, duration_ms, background_type):
         """

@@ -55,11 +55,30 @@ def main():
     # Sidebar for options
     st.sidebar.header("⚙️ オプション設定")
     enable_background_audio = st.sidebar.checkbox("背景音声を追加", value=False)
-    background_type = st.sidebar.selectbox(
-        "背景音声の種類",
-        ["classroom", "cafe", "park", "home", "none"],
+    
+    # Background audio options
+    st.sidebar.subheader("背景音声の設定")
+    background_source = st.sidebar.radio(
+        "背景音声のソース",
+        ["生成された音声", "アップロードファイル"],
         disabled=not enable_background_audio
     )
+    
+    if background_source == "生成された音声":
+        background_type = st.sidebar.selectbox(
+            "背景音声の種類",
+            ["classroom", "cafe", "park", "home"],
+            disabled=not enable_background_audio
+        )
+        uploaded_background = None
+    else:
+        background_type = None
+        uploaded_background = st.sidebar.file_uploader(
+            "背景音声ファイルをアップロード",
+            type=["mp3", "wav"],
+            disabled=not enable_background_audio,
+            help="MP3またはWAV形式の背景音声ファイルをアップロードしてください"
+        )
     
     # Main input
     st.header("📝 シーン入力")
@@ -122,7 +141,8 @@ def main():
                     audio_files = audio_gen.generate_conversation_audio(
                         script_data.get('conversation', []),
                         add_background=enable_background_audio,
-                        background_type=background_type if enable_background_audio else None
+                        background_type=background_type if enable_background_audio else None,
+                        uploaded_background=uploaded_background if enable_background_audio else None
                     )
                     
                     if audio_files:
