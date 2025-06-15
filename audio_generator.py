@@ -126,8 +126,8 @@ class AudioGenerator:
                 background_audio = self._generate_background_audio(
                     len(combined_audio), background_type
                 )
-                # Mix background at lower volume
-                combined_audio = combined_audio.overlay(background_audio - 20)
+                # Mix background at lower volume (reduce by 15dB)
+                combined_audio = combined_audio.overlay(background_audio - 15)
             
             # Export combined audio
             combined_file = os.path.join(self.temp_dir, "combined_conversation.wav")
@@ -154,18 +154,18 @@ class AudioGenerator:
         """
         try:
             if background_type == "classroom":
-                # Generate soft white noise
-                return self._generate_white_noise(duration_ms, volume=-30)
+                # Generate soft ambient noise
+                return self._generate_ambient_noise(duration_ms, volume=-20)
             
             elif background_type == "cafe":
                 # Generate gentle ambient sound with some variation
-                base_noise = self._generate_white_noise(duration_ms, volume=-25)
-                # Add some subtle variations
+                base_noise = self._generate_ambient_noise(duration_ms, volume=-18)
+                # Add some subtle variations (coffee shop sounds)
                 variations = []
-                for _ in range(5):
+                for _ in range(3):
                     start = random.randint(0, max(1, duration_ms - 2000))
-                    tone = Sine(random.randint(200, 800)).to_audio_segment(duration=500)
-                    tone = tone - 35  # Very quiet
+                    tone = Sine(random.randint(200, 600)).to_audio_segment(duration=800)
+                    tone = tone - 25  # Quiet background chatter simulation
                     variations.append((start, tone))
                 
                 for start, tone in variations:
@@ -174,49 +174,61 @@ class AudioGenerator:
                 return base_noise
             
             elif background_type == "park":
-                # Generate nature-like sounds (simplified)
-                base_noise = self._generate_white_noise(duration_ms, volume=-28)
-                # Add some bird-like sounds (very simplified)
-                for _ in range(3):
+                # Generate nature-like sounds
+                base_noise = self._generate_ambient_noise(duration_ms, volume=-22)
+                # Add some bird-like sounds
+                for _ in range(2):
                     start = random.randint(0, max(1, duration_ms - 1000))
-                    chirp = Sine(random.randint(1000, 2000)).to_audio_segment(duration=200)
-                    chirp = chirp - 30
+                    chirp = Sine(random.randint(800, 1500)).to_audio_segment(duration=300)
+                    chirp = chirp - 20  # Bird sounds
                     base_noise = base_noise.overlay(chirp, position=start)
                 
                 return base_noise
             
             elif background_type == "home":
-                # Very subtle background
-                return self._generate_white_noise(duration_ms, volume=-35)
+                # Subtle home background
+                return self._generate_ambient_noise(duration_ms, volume=-25)
             
             else:
                 # Default quiet background
-                return self._generate_white_noise(duration_ms, volume=-40)
+                return self._generate_ambient_noise(duration_ms, volume=-30)
                 
         except Exception as e:
             # If background generation fails, return silence
             return AudioSegment.silent(duration=duration_ms)
     
-    def _generate_white_noise(self, duration_ms, volume=-30):
+    def _generate_ambient_noise(self, duration_ms, volume=-30):
         """
-        Generate white noise
+        Generate ambient noise using multiple frequency layers
         
         Args:
             duration_ms (int): Duration in milliseconds
             volume (int): Volume in dB
             
         Returns:
-            AudioSegment: White noise audio segment
+            AudioSegment: Ambient noise audio segment
         """
-        # Create white noise by overlaying multiple sine waves
+        # Start with silence
         noise = AudioSegment.silent(duration=duration_ms)
         
-        for freq in range(100, 2000, 100):
+        # Add low frequency rumble
+        low_freq = Sine(60).to_audio_segment(duration=duration_ms)
+        low_freq = low_freq + volume - 15
+        noise = noise.overlay(low_freq)
+        
+        # Add mid frequency ambient
+        for freq in [150, 300, 450, 600]:
             sine_wave = Sine(freq).to_audio_segment(duration=duration_ms)
-            sine_wave = sine_wave + volume - 10  # Make it quieter
+            sine_wave = sine_wave + volume - 10
             noise = noise.overlay(sine_wave)
         
-        return noise + volume
+        # Add high frequency subtle hiss
+        for freq in [1000, 1500, 2000]:
+            sine_wave = Sine(freq).to_audio_segment(duration=duration_ms)
+            sine_wave = sine_wave + volume - 20
+            noise = noise.overlay(sine_wave)
+        
+        return noise
     
     def cleanup(self):
         """Clean up temporary files"""
