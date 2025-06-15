@@ -111,7 +111,12 @@ def main():
                         st.error("音声ファイルの生成に失敗しました。")
                         
                 except Exception as e:
-                    st.error(f"音声生成エラー: {str(e)}")
+                    error_msg = str(e)
+                    if "429" in error_msg or "Too Many Requests" in error_msg:
+                        st.error("⚠️ 音声生成サービスが一時的に利用制限に達しています。数分後に再度お試しください。")
+                        st.info("💡 ヒント: しばらく待ってから「音声生成」ボタンを再度クリックしてください。")
+                    else:
+                        st.error(f"音声生成エラー: {error_msg}")
         
         # Display audio and download options
         if hasattr(st.session_state, 'audio_files') and st.session_state.audio_files:

@@ -4,6 +4,7 @@ from gtts import gTTS
 from pydub import AudioSegment
 from pydub.generators import Sine
 import random
+import time
 
 class AudioGenerator:
     def __init__(self):
@@ -34,10 +35,37 @@ class AudioGenerator:
                 if not text.strip():
                     continue
                 
-                # Create TTS audio
-                tts = gTTS(text=text, lang='en', slow=False)
+                # Create TTS audio with retry logic and better error handling
+                max_retries = 3
+                retry_delay = 3
                 temp_file = os.path.join(self.temp_dir, f"{speaker}_{i}.mp3")
-                tts.save(temp_file)
+                
+                success = False
+                for attempt in range(max_retries):
+                    try:
+                        # Add small delay between requests to avoid rate limiting
+                        if attempt > 0:
+                            time.sleep(retry_delay + random.uniform(1, 3))
+                        
+                        tts = gTTS(text=text, lang='en', slow=False, timeout=30)
+                        tts.save(temp_file)
+                        success = True
+                        break
+                    except Exception as e:
+                        error_str = str(e).lower()
+                        if "429" in error_str or "too many requests" in error_str:
+                            if attempt < max_retries - 1:
+                                wait_time = retry_delay * (2 ** attempt) + random.uniform(2, 5)
+                                time.sleep(wait_time)
+                                continue
+                        if attempt < max_retries - 1:
+                            time.sleep(retry_delay)
+                            continue
+                        else:
+                            raise Exception(f"TTS service temporarily unavailable after {max_retries} attempts. Error: {str(e)}")
+                
+                if not success:
+                    raise Exception("Failed to generate audio after all retry attempts")
                 
                 # Convert to AudioSegment for processing
                 audio_segment = AudioSegment.from_mp3(temp_file)
@@ -47,6 +75,9 @@ class AudioGenerator:
                     combined_segments.append(AudioSegment.silent(duration=1000))
                 
                 combined_segments.append(audio_segment)
+                
+                # Add a small delay between TTS requests to avoid rate limiting
+                time.sleep(0.5)
                 
                 # Store individual file path
                 individual_wav = os.path.join(self.temp_dir, f"{speaker}_{i}.wav")
@@ -60,7 +91,9 @@ class AudioGenerator:
                 raise ValueError("No valid audio segments generated")
             
             # Combine all segments
-            combined_audio = sum(combined_segments)
+            combined_audio = AudioSegment.empty()
+            for segment in combined_segments:
+                combined_audio += segment
             
             # Add background audio if requested
             if add_background and background_type and background_type != "none":
