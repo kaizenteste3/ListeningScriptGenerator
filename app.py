@@ -126,7 +126,22 @@ def main():
                     )
                     
                     if audio_files:
+                        # Read audio data immediately and store in session state
+                        audio_data = {}
+                        if 'combined' in audio_files and os.path.exists(audio_files['combined']):
+                            with open(audio_files['combined'], 'rb') as f:
+                                audio_data['combined'] = f.read()
+                        
+                        individual_data = {}
+                        if 'individual' in audio_files:
+                            for speaker, file_path in audio_files['individual'].items():
+                                if os.path.exists(file_path):
+                                    with open(file_path, 'rb') as f:
+                                        individual_data[speaker] = f.read()
+                        audio_data['individual'] = individual_data
+                        
                         st.session_state.audio_files = audio_files
+                        st.session_state.audio_data = audio_data
                         st.success("音声ファイルが正常に生成されました！")
                     else:
                         st.error("音声ファイルの生成に失敗しました。")
@@ -140,41 +155,45 @@ def main():
                         st.error(f"音声生成エラー: {error_msg}")
         
         # Display audio and download options
-        if hasattr(st.session_state, 'audio_files') and st.session_state.audio_files:
+        if hasattr(st.session_state, 'audio_data') and st.session_state.audio_data:
             st.subheader("🎧 生成された音声")
             
-            audio_files = st.session_state.audio_files
+            audio_data = st.session_state.audio_data
             
             # Play combined conversation
-            if 'combined' in audio_files:
+            if 'combined' in audio_data:
                 st.write("**完全版会話音声**")
-                st.audio(audio_files['combined'])
-                
-                # Download button for combined audio
-                with open(audio_files['combined'], 'rb') as f:
+                try:
+                    st.audio(audio_data['combined'])
+                    
+                    # Download button for combined audio
                     st.download_button(
                         label="📥 完全版音声をダウンロード",
-                        data=f.read(),
+                        data=audio_data['combined'],
                         file_name=f"conversation_{script_data.get('title', 'untitled').replace(' ', '_')}.wav",
                         mime="audio/wav"
                     )
+                except Exception as e:
+                    st.error(f"音声の表示エラー: {e}")
             
             # Individual speaker audio files
-            if 'individual' in audio_files:
+            if 'individual' in audio_data and audio_data['individual']:
                 st.write("**個別音声ファイル**")
-                for speaker, file_path in audio_files['individual'].items():
+                for speaker, individual_audio_data in audio_data['individual'].items():
                     st.write(f"**{speaker}の音声**")
-                    st.audio(file_path)
-                    
-                    # Download button for individual audio
-                    with open(file_path, 'rb') as f:
+                    try:
+                        st.audio(individual_audio_data)
+                        
+                        # Download button for individual audio
                         st.download_button(
                             label=f"📥 {speaker}の音声をダウンロード",
-                            data=f.read(),
+                            data=individual_audio_data,
                             file_name=f"{speaker}_{script_data.get('title', 'untitled').replace(' ', '_')}.wav",
                             mime="audio/wav",
                             key=f"download_{speaker}"
                         )
+                    except Exception as e:
+                        st.error(f"{speaker}の音声表示エラー: {e}")
     
     # Footer
     st.markdown("---")

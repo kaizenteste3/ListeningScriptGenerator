@@ -222,10 +222,16 @@ class AudioGenerator:
         """Clean up temporary files"""
         try:
             import shutil
-            shutil.rmtree(self.temp_dir, ignore_errors=True)
+            if hasattr(self, 'temp_dir') and os.path.exists(self.temp_dir):
+                shutil.rmtree(self.temp_dir, ignore_errors=True)
         except Exception:
             pass
     
+    def manual_cleanup(self):
+        """Manually clean up temporary files when explicitly called"""
+        self.cleanup()
+    
     def __del__(self):
         """Cleanup when object is destroyed"""
-        self.cleanup()
+        # Don't automatically cleanup on deletion to prevent file access issues
+        pass
