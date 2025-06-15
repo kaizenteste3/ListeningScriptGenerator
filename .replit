@@ -2,7 +2,7 @@ modules = ["python-3.11"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["ffmpeg-full"]
+packages = ["ffmpeg-full", "libuuid", "util-linux", "alsa-lib", "pulseaudio"]
 
 [deployment]
 deploymentTarget = "autoscale"
