@@ -3,12 +3,17 @@ import os
 from openai import OpenAI
 
 class ScriptGenerator:
-    def __init__(self):
+    def __init__(self, api_key=None):
         """Initialize the script generator with OpenAI API"""
-        self.api_key = os.environ.get("OPENAI_API_KEY")
+        self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
         if not self.api_key:
-            raise ValueError("OPENAI_API_KEY environment variable is required")
-        
+            self.client = None
+        else:
+            self.client = OpenAI(api_key=self.api_key)
+    
+    def set_api_key(self, api_key):
+        """Set the OpenAI API key"""
+        self.api_key = api_key
         self.client = OpenAI(api_key=self.api_key)
     
     def generate_script(self, scene_description):
@@ -21,6 +26,9 @@ class ScriptGenerator:
         Returns:
             dict: Generated script data with title, situation, and conversation
         """
+        if not self.client:
+            raise ValueError("OpenAI API key is required. Please set your API key first.")
+        
         try:
             # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
             # do not change this unless explicitly requested by the user
@@ -59,7 +67,10 @@ class ScriptGenerator:
                 temperature=0.7
             )
             
-            result = json.loads(response.choices[0].message.content)
+            content = response.choices[0].message.content
+            if not content:
+                raise ValueError("Empty response from OpenAI API")
+            result = json.loads(content)
             
             # Validate the response structure
             if not all(key in result for key in ["title", "situation", "conversation"]):

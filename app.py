@@ -14,8 +14,21 @@ def main():
     st.title("🎧 中学英語リスニング教材ジェネレーター")
     st.markdown("シーンを入力して、中学英語レベルの会話スクリプトと音声ファイルを自動生成します。")
     
+    # API Key input section
+    st.header("🔑 API設定")
+    api_key = st.text_input(
+        "OpenAI API キーを入力してください",
+        type="password",
+        placeholder="sk-...",
+        help="OpenAIのAPIキーが必要です。https://platform.openai.com でアカウントを作成し、APIキーを取得してください。"
+    )
+    
+    if not api_key:
+        st.warning("⚠️ OpenAI API キーを入力してからスクリプト生成を行ってください。")
+        st.stop()
+    
     # Initialize generators
-    script_gen = ScriptGenerator()
+    script_gen = ScriptGenerator(api_key)
     audio_gen = AudioGenerator()
     
     # Sidebar for options
