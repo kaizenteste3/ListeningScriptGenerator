@@ -80,9 +80,9 @@ class AudioGenerator:
                 # Configure voice for this speaker
                 self.speech_config.speech_synthesis_voice_name = speaker_voices[speaker]
                 
-                # Create synthesizer
-                temp_file = os.path.join(self.temp_dir, f"{speaker}_{i}.wav")
-                audio_config = speechsdk.audio.AudioOutputConfig(filename=temp_file)
+                # Create synthesizer - temporarily use WAV for Azure, then convert to MP3
+                temp_wav_file = os.path.join(self.temp_dir, f"{speaker}_{i}_temp.wav")
+                audio_config = speechsdk.audio.AudioOutputConfig(filename=temp_wav_file)
                 synthesizer = speechsdk.SpeechSynthesizer(
                     speech_config=self.speech_config, 
                     audio_config=audio_config
@@ -92,8 +92,12 @@ class AudioGenerator:
                 result = synthesizer.speak_text_async(text).get()
                 
                 if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-                    # Load the generated audio file
-                    audio_segment = AudioSegment.from_wav(temp_file)
+                    # Load the generated audio file and convert to MP3
+                    audio_segment = AudioSegment.from_wav(temp_wav_file)
+                    
+                    # Export individual file as MP3
+                    mp3_file = os.path.join(self.temp_dir, f"{speaker}_{i}.mp3")
+                    audio_segment.export(mp3_file, format="mp3")
                     
                     # Add pause between speakers (1 second)
                     if combined_segments:
@@ -101,8 +105,12 @@ class AudioGenerator:
                     
                     combined_segments.append(audio_segment)
                     
-                    # Store individual file path
-                    individual_files[f"{speaker}_{i}"] = temp_file
+                    # Store individual MP3 file path
+                    individual_files[f"{speaker}_{i}"] = mp3_file
+                    
+                    # Clean up temporary WAV file
+                    if os.path.exists(temp_wav_file):
+                        os.remove(temp_wav_file)
                     
                 elif result.reason == speechsdk.ResultReason.Canceled:
                     cancellation_details = result.cancellation_details
@@ -129,9 +137,9 @@ class AudioGenerator:
                 # Mix background at lower volume (reduce by 15dB)
                 combined_audio = combined_audio.overlay(background_audio - 15)
             
-            # Export combined audio
-            combined_file = os.path.join(self.temp_dir, "combined_conversation.wav")
-            combined_audio.export(combined_file, format="wav")
+            # Export combined audio as MP3
+            combined_file = os.path.join(self.temp_dir, "combined_conversation.mp3")
+            combined_audio.export(combined_file, format="mp3")
             
             return {
                 "combined": combined_file,
@@ -143,7 +151,7 @@ class AudioGenerator:
     
     def _generate_background_audio(self, duration_ms, background_type):
         """
-        Load and process background audio from local files
+        Load and process background audio from local files (MP3 and WAV support)
         
         Args:
             duration_ms (int): Duration in milliseconds
@@ -155,13 +163,28 @@ class AudioGenerator:
         try:
             # Path to background audio files
             background_audio_dir = "background_audio"
-            background_file = os.path.join(background_audio_dir, f"{background_type}.wav")
             
-            # Check if background audio file exists
-            if os.path.exists(background_file):
-                # Load the background audio file
-                background_audio = AudioSegment.from_wav(background_file)
-                
+            # Check for MP3 file first, then WAV
+            mp3_file = os.path.join(background_audio_dir, f"{background_type}.mp3")
+            wav_file = os.path.join(background_audio_dir, f"{background_type}.wav")
+            
+            background_audio = None
+            
+            # Try to load MP3 file first
+            if os.path.exists(mp3_file):
+                try:
+                    background_audio = AudioSegment.from_mp3(mp3_file)
+                except Exception as e:
+                    print(f"Error loading MP3 file {mp3_file}: {e}")
+            
+            # If MP3 didn't work, try WAV
+            if background_audio is None and os.path.exists(wav_file):
+                try:
+                    background_audio = AudioSegment.from_wav(wav_file)
+                except Exception as e:
+                    print(f"Error loading WAV file {wav_file}: {e}")
+            
+            if background_audio is not None:
                 # Adjust the duration to match the conversation
                 if len(background_audio) < duration_ms:
                     # Loop the background audio if it's shorter than needed
@@ -177,8 +200,8 @@ class AudioGenerator:
                 return background_audio
             
             else:
-                # If file doesn't exist, fallback to generated ambient noise
-                print(f"Warning: Background audio file not found: {background_file}")
+                # If no files exist, fallback to generated ambient noise
+                print(f"Warning: Background audio file not found: {mp3_file} or {wav_file}")
                 print("Falling back to generated ambient noise")
                 return self._generate_ambient_noise(duration_ms, volume=-25)
                 

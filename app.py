@@ -17,8 +17,8 @@ def main():
     # ファイルアップローダー追加
     st.sidebar.header("📁 背景音声ファイルのアップロード")
     background_audio_files = st.sidebar.file_uploader(
-        "背景音声ファイルをアップロードしてください（.wav形式）",
-        type=["wav"],
+        "背景音声ファイルをアップロードしてください（.mp3または.wav形式）",
+        type=["mp3", "wav"],
         accept_multiple_files=True
     )
 
@@ -190,8 +190,8 @@ def main():
                     st.download_button(
                         label="📥 完全版音声をダウンロード",
                         data=audio_data['combined'],
-                        file_name=f"conversation_{script_data.get('title', 'untitled').replace(' ', '_')}.wav",
-                        mime="audio/wav"
+                        file_name=f"conversation_{script_data.get('title', 'untitled').replace(' ', '_')}.mp3",
+                        mime="audio/mpeg"
                     )
                 except Exception as e:
                     st.error(f"音声の表示エラー: {e}")
@@ -208,8 +208,8 @@ def main():
                         st.download_button(
                             label=f"📥 {speaker}の音声をダウンロード",
                             data=individual_audio_data,
-                            file_name=f"{speaker}_{script_data.get('title', 'untitled').replace(' ', '_')}.wav",
-                            mime="audio/wav",
+                            file_name=f"{speaker}_{script_data.get('title', 'untitled').replace(' ', '_')}.mp3",
+                            mime="audio/mpeg",
                             key=f"download_{speaker}"
                         )
                     except Exception as e:
