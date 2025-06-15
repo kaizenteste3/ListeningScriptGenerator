@@ -116,16 +116,139 @@ def main():
         
         script_data = st.session_state.script_data
         
-        # Display title and situation
-        st.subheader(f"タイトル: {script_data.get('title', 'Untitled')}")
-        st.write(f"**場面**: {script_data.get('situation', 'No description')}")
+        # Edit mode toggle
+        edit_mode = st.checkbox("✏️ スクリプトを編集", key="edit_mode")
         
-        # Display conversation
-        st.subheader("会話スクリプト")
-        for line in script_data.get('conversation', []):
-            speaker = line.get('speaker', 'Unknown')
-            text = line.get('text', '')
-            st.write(f"**{speaker}**: {text}")
+        if edit_mode:
+            # Editable fields
+            st.subheader("スクリプト編集")
+            
+            # Edit title
+            edited_title = st.text_input(
+                "タイトル",
+                value=script_data.get('title', 'Untitled'),
+                key="edit_title"
+            )
+            
+            # Edit situation
+            edited_situation = st.text_area(
+                "場面",
+                value=script_data.get('situation', 'No description'),
+                height=80,
+                key="edit_situation"
+            )
+            
+            # Edit conversation
+            st.subheader("会話編集")
+            edited_conversation = []
+            
+            for i, line in enumerate(script_data.get('conversation', [])):
+                col1, col2, col3 = st.columns([2, 6, 1])
+                
+                with col1:
+                    speaker = st.text_input(
+                        f"話者 {i+1}",
+                        value=line.get('speaker', 'Unknown'),
+                        key=f"edit_speaker_{i}"
+                    )
+                
+                with col2:
+                    text = st.text_area(
+                        f"台詞 {i+1}",
+                        value=line.get('text', ''),
+                        height=60,
+                        key=f"edit_text_{i}"
+                    )
+                
+                with col3:
+                    st.write("")  # Spacing
+                    if st.button("🗑️", key=f"delete_{i}", help="この行を削除"):
+                        # Mark for deletion
+                        if 'lines_to_delete' not in st.session_state:
+                            st.session_state.lines_to_delete = []
+                        st.session_state.lines_to_delete.append(i)
+                        st.rerun()
+                
+                # Only add if not marked for deletion
+                if 'lines_to_delete' not in st.session_state or i not in st.session_state.lines_to_delete:
+                    edited_conversation.append({
+                        'speaker': speaker,
+                        'text': text
+                    })
+            
+            # Add new line button
+            if st.button("➕ 新しい台詞を追加"):
+                if 'new_lines_count' not in st.session_state:
+                    st.session_state.new_lines_count = 0
+                st.session_state.new_lines_count += 1
+                st.rerun()
+            
+            # Handle new lines
+            if 'new_lines_count' in st.session_state and st.session_state.new_lines_count > 0:
+                for j in range(st.session_state.new_lines_count):
+                    new_idx = len(script_data.get('conversation', [])) + j
+                    col1, col2 = st.columns([2, 6])
+                    
+                    with col1:
+                        new_speaker = st.text_input(
+                            f"新しい話者 {j+1}",
+                            key=f"new_speaker_{j}"
+                        )
+                    
+                    with col2:
+                        new_text = st.text_area(
+                            f"新しい台詞 {j+1}",
+                            height=60,
+                            key=f"new_text_{j}"
+                        )
+                    
+                    if new_speaker and new_text:
+                        edited_conversation.append({
+                            'speaker': new_speaker,
+                            'text': new_text
+                        })
+            
+            # Save changes button
+            col1, col2, col3 = st.columns([1, 1, 3])
+            with col1:
+                if st.button("💾 変更を保存", type="primary"):
+                    # Update script data
+                    st.session_state.script_data = {
+                        'title': edited_title,
+                        'situation': edited_situation,
+                        'conversation': edited_conversation
+                    }
+                    # Clear temporary states
+                    if 'lines_to_delete' in st.session_state:
+                        del st.session_state.lines_to_delete
+                    if 'new_lines_count' in st.session_state:
+                        del st.session_state.new_lines_count
+                    # Clear any existing audio files since script changed
+                    if 'audio_files' in st.session_state:
+                        del st.session_state.audio_files
+                    st.success("スクリプトを更新しました！")
+                    st.rerun()
+            
+            with col2:
+                if st.button("🔄 元に戻す"):
+                    # Clear temporary states
+                    if 'lines_to_delete' in st.session_state:
+                        del st.session_state.lines_to_delete
+                    if 'new_lines_count' in st.session_state:
+                        del st.session_state.new_lines_count
+                    st.rerun()
+        
+        else:
+            # Display mode (read-only)
+            st.subheader(f"タイトル: {script_data.get('title', 'Untitled')}")
+            st.write(f"**場面**: {script_data.get('situation', 'No description')}")
+            
+            # Display conversation
+            st.subheader("会話スクリプト")
+            for line in script_data.get('conversation', []):
+                speaker = line.get('speaker', 'Unknown')
+                text = line.get('text', '')
+                st.write(f"**{speaker}**: {text}")
         
         # Audio generation section
         st.header("🎵 音声生成")
