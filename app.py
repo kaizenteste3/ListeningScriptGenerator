@@ -10,74 +10,33 @@ def main():
         page_icon="🎧",
         layout="wide"
     )
-
+    
     st.title("🎧 中学英語リスニング教材ジェネレーター")
     st.markdown("シーンを入力して、中学英語レベルの会話スクリプトと音声ファイルを自動生成します。")
-
-    # ファイルアップローダー追加
-    st.sidebar.header("📁 背景音声ファイルのアップロード")
-    background_audio_files = st.sidebar.file_uploader(
-        "背景音声ファイルをアップロードしてください（.mp3または.wav形式）",
-        type=["mp3", "wav"],
-        accept_multiple_files=True
-    )
-
-    # アップロードファイルを`background_audio`フォルダに保存
-    background_audio_dir = "background_audio"
-    if background_audio_files:
-        if not os.path.exists(background_audio_dir):
-            os.makedirs(background_audio_dir)
-        for uploaded_file in background_audio_files:
-            file_path = os.path.join(background_audio_dir, uploaded_file.name)
-            with open(file_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
-            st.sidebar.success(f"Uploaded: {uploaded_file.name}")
-
-    # APIキー入力セクション
+    
+    # API Key input section
     st.header("🔑 API設定")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        api_key = st.text_input(
-            "OpenAI API キーを入力してください",
-            type="password",
-            placeholder="sk-...",
-            help="OpenAIのAPIキーが必要です。https://platform.openai.com でアカウントを作成し、APIキーを取得してください。"
-        )
-
-    with col2:
-        azure_speech_key = st.text_input(
-            "Azure Speech Services キーを入力してください",
-            type="password",
-            placeholder="Azure Speech Key",
-            help="Azure Speech Servicesのサブスクリプションキーが必要です。"
-        )
-
-        azure_region = st.text_input(
-            "Azure リージョンを入力してください",
-            placeholder="例: japaneast",
-            help="Azure Speech Servicesのリージョンを入力してください（例: japaneast, eastus）"
-        )
-
-    # 入力がない場合は警告
+    api_key = st.text_input(
+        "OpenAI API キーを入力してください",
+        type="password",
+        placeholder="sk-...",
+        help="OpenAIのAPIキーが必要です。https://platform.openai.com でアカウントを作成し、APIキーを取得してください。"
+    )
+    
     if not api_key:
         st.warning("⚠️ OpenAI API キーを入力してからスクリプト生成を行ってください。")
         st.stop()
-
-    if not azure_speech_key or not azure_region:
-        st.warning("⚠️ Azure Speech Services の認証情報を入力してから音声生成を行ってください。")
-
-    # ジェネレーターの初期化
+    
+    # Initialize generators
     script_gen = ScriptGenerator(api_key)
-    audio_gen = AudioGenerator(azure_speech_key, azure_region)
+    audio_gen = AudioGenerator()
 
-    # サイドバーのオプション
+    # Sidebar for options
     st.sidebar.header("⚙️ オプション設定")
     enable_background_audio = st.sidebar.checkbox("背景音声を追加", value=False)
     background_type = st.sidebar.selectbox(
         "背景音声の種類",
-        os.listdir(background_audio_dir) if os.path.exists(background_audio_dir) else [],
+        ["classroom", "cafe", "park", "home", "none"],
         disabled=not enable_background_audio
     )
 
