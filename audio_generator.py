@@ -1,42 +1,19 @@
-
 import os
 import tempfile
+from gtts import gTTS
 from pydub import AudioSegment
 from pydub.generators import Sine
 import random
 import time
-import azure.cognitiveservices.speech as speechsdk
 
 class AudioGenerator:
-    def __init__(self, azure_speech_key=None, azure_region=None):
-        """Initialize the audio generator with Azure Speech Services"""
+    def __init__(self):
+        """Initialize the audio generator"""
         self.temp_dir = tempfile.mkdtemp()
-        self.azure_speech_key = azure_speech_key
-        self.azure_region = azure_region
-        
-        if self.azure_speech_key and self.azure_region:
-            self.speech_config = speechsdk.SpeechConfig(
-                subscription=self.azure_speech_key, 
-                region=self.azure_region
-            )
-            # Use a natural English voice
-            self.speech_config.speech_synthesis_voice_name = "en-US-AriaNeural"
-        else:
-            self.speech_config = None
-        
-    def set_azure_credentials(self, speech_key, region):
-        """Set Azure Speech Services credentials"""
-        self.azure_speech_key = speech_key
-        self.azure_region = region
-        self.speech_config = speechsdk.SpeechConfig(
-            subscription=self.azure_speech_key, 
-            region=self.azure_region
-        )
-        self.speech_config.speech_synthesis_voice_name = "en-US-AriaNeural"
         
     def generate_conversation_audio(self, conversation, add_background=False, background_type=None):
         """
-        Generate audio files from conversation script using Azure Speech Services
+        Generate audio files from conversation script
         
         Args:
             conversation (list): List of conversation lines with speaker and text
@@ -46,23 +23,9 @@ class AudioGenerator:
         Returns:
             dict: Dictionary containing paths to generated audio files
         """
-        if not self.speech_config:
-            raise ValueError("Azure Speech Services credentials are required")
-            
         try:
             individual_files = {}
             combined_segments = []
-            
-            # Define different voices for different speakers
-            voices = [
-                "en-US-AriaNeural",      # Female voice
-                "en-US-DavisNeural",     # Male voice
-                "en-US-JennyNeural",     # Female voice
-                "en-US-GuyNeural"        # Male voice
-            ]
-            
-            speaker_voices = {}
-            voice_index = 0
             
             # Generate individual audio files for each speaker line
             for i, line in enumerate(conversation):
@@ -72,54 +35,57 @@ class AudioGenerator:
                 if not text.strip():
                     continue
                 
-                # Assign voice to speaker if not already assigned
-                if speaker not in speaker_voices:
-                    speaker_voices[speaker] = voices[voice_index % len(voices)]
-                    voice_index += 1
+                # Create TTS audio with retry logic and better error handling
+                max_retries = 3
+                retry_delay = 3
+                temp_file = os.path.join(self.temp_dir, f"{speaker}_{i}.mp3")
                 
-                # Configure voice for this speaker
-                self.speech_config.speech_synthesis_voice_name = speaker_voices[speaker]
+                success = False
+                for attempt in range(max_retries):
+                    try:
+                        # Add small delay between requests to avoid rate limiting
+                        if attempt > 0:
+                            time.sleep(retry_delay + random.uniform(1, 3))
+                        
+                        tts = gTTS(text=text, lang='en', slow=False, timeout=30)
+                        tts.save(temp_file)
+                        success = True
+                        break
+                    except Exception as e:
+                        error_str = str(e).lower()
+                        if "429" in error_str or "too many requests" in error_str:
+                            if attempt < max_retries - 1:
+                                wait_time = retry_delay * (2 ** attempt) + random.uniform(2, 5)
+                                time.sleep(wait_time)
+                                continue
+                        if attempt < max_retries - 1:
+                            time.sleep(retry_delay)
+                            continue
+                        else:
+                            raise Exception(f"TTS service temporarily unavailable after {max_retries} attempts. Error: {str(e)}")
                 
-                # Create synthesizer - temporarily use WAV for Azure, then convert to MP3
-                temp_wav_file = os.path.join(self.temp_dir, f"{speaker}_{i}_temp.wav")
-                audio_config = speechsdk.audio.AudioOutputConfig(filename=temp_wav_file)
-                synthesizer = speechsdk.SpeechSynthesizer(
-                    speech_config=self.speech_config, 
-                    audio_config=audio_config
-                )
+                if not success:
+                    raise Exception("Failed to generate audio after all retry attempts")
                 
-                # Synthesize speech
-                result = synthesizer.speak_text_async(text).get()
+                # Convert to AudioSegment for processing
+                audio_segment = AudioSegment.from_mp3(temp_file)
                 
-                if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-                    # Load the generated audio file and convert to MP3
-                    audio_segment = AudioSegment.from_wav(temp_wav_file)
-                    
-                    # Export individual file as MP3
-                    mp3_file = os.path.join(self.temp_dir, f"{speaker}_{i}.mp3")
-                    audio_segment.export(mp3_file, format="mp3")
-                    
-                    # Add pause between speakers (1 second)
-                    if combined_segments:
-                        combined_segments.append(AudioSegment.silent(duration=1000))
-                    
-                    combined_segments.append(audio_segment)
-                    
-                    # Store individual MP3 file path
-                    individual_files[f"{speaker}_{i}"] = mp3_file
-                    
-                    # Clean up temporary WAV file
-                    if os.path.exists(temp_wav_file):
-                        os.remove(temp_wav_file)
-                    
-                elif result.reason == speechsdk.ResultReason.Canceled:
-                    cancellation_details = result.cancellation_details
-                    raise Exception(f"Speech synthesis canceled: {cancellation_details.reason}")
-                else:
-                    raise Exception(f"Speech synthesis failed: {result.reason}")
+                # Add pause between speakers (1 second)
+                if combined_segments:
+                    combined_segments.append(AudioSegment.silent(duration=1000))
                 
-                # Small delay to avoid overwhelming the service
-                time.sleep(0.1)
+                combined_segments.append(audio_segment)
+                
+                # Add a small delay between TTS requests to avoid rate limiting
+                time.sleep(0.5)
+                
+                # Store individual file path
+                individual_wav = os.path.join(self.temp_dir, f"{speaker}_{i}.wav")
+                audio_segment.export(individual_wav, format="wav")
+                individual_files[f"{speaker}_{i}"] = individual_wav
+                
+                # Clean up temp MP3 file
+                os.remove(temp_file)
             
             if not combined_segments:
                 raise ValueError("No valid audio segments generated")
@@ -131,15 +97,17 @@ class AudioGenerator:
             
             # Add background audio if requested
             if add_background and background_type and background_type != "none":
+                print(f"Adding background audio: {background_type}")
                 background_audio = self._generate_background_audio(
                     len(combined_audio), background_type
                 )
-                # Mix background at lower volume (reduce by 15dB)
-                combined_audio = combined_audio.overlay(background_audio - 15)
+                # Mix background at lower volume (-20dB)
+                combined_audio = combined_audio.overlay(background_audio - 20)
+                print(f"Background audio added successfully")
             
-            # Export combined audio as MP3
-            combined_file = os.path.join(self.temp_dir, "combined_conversation.mp3")
-            combined_audio.export(combined_file, format="mp3")
+            # Export combined audio
+            combined_file = os.path.join(self.temp_dir, "combined_conversation.wav")
+            combined_audio.export(combined_file, format="wav")
             
             return {
                 "combined": combined_file,
@@ -147,116 +115,130 @@ class AudioGenerator:
             }
             
         except Exception as e:
-            raise Exception(f"Failed to generate audio with Azure Speech Services: {e}")
+            raise Exception(f"Failed to generate audio: {e}")
     
     def _generate_background_audio(self, duration_ms, background_type):
         """
-        Load and process background audio from local files (MP3 and WAV support)
+        Generate simple background audio based on type
         
         Args:
             duration_ms (int): Duration in milliseconds
             background_type (str): Type of background audio
             
         Returns:
-            AudioSegment: Processed background audio
+            AudioSegment: Generated background audio
         """
         try:
-            # Path to background audio files
-            background_audio_dir = "background_audio"
+            print(f"Generating {background_type} background audio for {duration_ms}ms")
             
-            # Check for MP3 file first, then WAV
-            mp3_file = os.path.join(background_audio_dir, f"{background_type}.mp3")
-            wav_file = os.path.join(background_audio_dir, f"{background_type}.wav")
+            if background_type == "classroom":
+                # Generate soft white noise for classroom
+                return self._generate_white_noise(duration_ms, volume=-30)
             
-            background_audio = None
-            
-            # Try to load MP3 file first
-            if os.path.exists(mp3_file):
-                try:
-                    background_audio = AudioSegment.from_mp3(mp3_file)
-                except Exception as e:
-                    print(f"Error loading MP3 file {mp3_file}: {e}")
-            
-            # If MP3 didn't work, try WAV
-            if background_audio is None and os.path.exists(wav_file):
-                try:
-                    background_audio = AudioSegment.from_wav(wav_file)
-                except Exception as e:
-                    print(f"Error loading WAV file {wav_file}: {e}")
-            
-            if background_audio is not None:
-                # Adjust the duration to match the conversation
-                if len(background_audio) < duration_ms:
-                    # Loop the background audio if it's shorter than needed
-                    loops_needed = (duration_ms // len(background_audio)) + 1
-                    background_audio = background_audio * loops_needed
+            elif background_type == "cafe":
+                # Generate ambient cafe sounds
+                base_noise = self._generate_white_noise(duration_ms, volume=-25)
                 
-                # Trim to exact duration
-                background_audio = background_audio[:duration_ms]
+                # Add some subtle variations for cafe atmosphere
+                for _ in range(random.randint(3, 7)):
+                    start = random.randint(0, max(1, duration_ms - 2000))
+                    # Coffee machine sounds (higher frequency)
+                    tone = Sine(random.randint(300, 1200)).to_audio_segment(duration=random.randint(200, 800))
+                    tone = tone - 35  # Very quiet
+                    base_noise = base_noise.overlay(tone, position=start)
                 
-                # Reduce volume for background effect
-                background_audio = background_audio - 15  # Reduce by 15dB
+                # Add some lower frequency rumble
+                for _ in range(random.randint(2, 4)):
+                    start = random.randint(0, max(1, duration_ms - 3000))
+                    rumble = Sine(random.randint(80, 200)).to_audio_segment(duration=random.randint(1000, 3000))
+                    rumble = rumble - 40
+                    base_noise = base_noise.overlay(rumble, position=start)
                 
-                return background_audio
+                return base_noise
+            
+            elif background_type == "park":
+                # Generate nature-like sounds
+                base_noise = self._generate_white_noise(duration_ms, volume=-28)
+                
+                # Add bird-like chirps
+                for _ in range(random.randint(4, 8)):
+                    start = random.randint(0, max(1, duration_ms - 1000))
+                    # Bird chirp (high frequency, short duration)
+                    chirp = Sine(random.randint(1500, 3000)).to_audio_segment(duration=random.randint(100, 400))
+                    chirp = chirp - 32
+                    base_noise = base_noise.overlay(chirp, position=start)
+                
+                # Add wind-like sounds (low frequency)
+                for _ in range(random.randint(2, 4)):
+                    start = random.randint(0, max(1, duration_ms - 4000))
+                    wind = Sine(random.randint(50, 150)).to_audio_segment(duration=random.randint(2000, 4000))
+                    wind = wind - 38
+                    base_noise = base_noise.overlay(wind, position=start)
+                
+                return base_noise
+            
+            elif background_type == "home":
+                # Very subtle home environment sounds
+                base_noise = self._generate_white_noise(duration_ms, volume=-35)
+                
+                # Add occasional household sounds
+                for _ in range(random.randint(1, 3)):
+                    start = random.randint(0, max(1, duration_ms - 1500))
+                    # Subtle household sounds
+                    sound = Sine(random.randint(200, 800)).to_audio_segment(duration=random.randint(300, 1000))
+                    sound = sound - 38
+                    base_noise = base_noise.overlay(sound, position=start)
+                
+                return base_noise
             
             else:
-                # If no files exist, fallback to generated ambient noise
-                print(f"Warning: Background audio file not found: {mp3_file} or {wav_file}")
-                print("Falling back to generated ambient noise")
-                return self._generate_ambient_noise(duration_ms, volume=-25)
+                # Default quiet background
+                return self._generate_white_noise(duration_ms, volume=-40)
                 
         except Exception as e:
-            print(f"Error loading background audio: {e}")
+            print(f"Background generation error: {e}")
             # If background generation fails, return silence
             return AudioSegment.silent(duration=duration_ms)
     
-    def _generate_ambient_noise(self, duration_ms, volume=-30):
+    def _generate_white_noise(self, duration_ms, volume=-30):
         """
-        Generate ambient noise using multiple frequency layers
+        Generate white noise
         
         Args:
             duration_ms (int): Duration in milliseconds
             volume (int): Volume in dB
             
         Returns:
-            AudioSegment: Ambient noise audio segment
+            AudioSegment: White noise audio segment
         """
-        # Start with silence
-        noise = AudioSegment.silent(duration=duration_ms)
-        
-        # Add low frequency rumble
-        low_freq = Sine(60).to_audio_segment(duration=duration_ms)
-        low_freq = low_freq + volume - 15
-        noise = noise.overlay(low_freq)
-        
-        # Add mid frequency ambient
-        for freq in [150, 300, 450, 600]:
-            sine_wave = Sine(freq).to_audio_segment(duration=duration_ms)
-            sine_wave = sine_wave + volume - 10
-            noise = noise.overlay(sine_wave)
-        
-        # Add high frequency subtle hiss
-        for freq in [1000, 1500, 2000]:
-            sine_wave = Sine(freq).to_audio_segment(duration=duration_ms)
-            sine_wave = sine_wave + volume - 20
-            noise = noise.overlay(sine_wave)
-        
-        return noise
+        try:
+            # Create white noise by overlaying multiple sine waves at different frequencies
+            noise = AudioSegment.silent(duration=duration_ms)
+            
+            # Generate noise across different frequency ranges
+            for freq in range(100, 2000, 150):
+                amplitude_variation = random.uniform(0.5, 1.0)
+                sine_wave = Sine(freq).to_audio_segment(duration=duration_ms)
+                sine_wave = sine_wave + volume - 15 + (amplitude_variation * 5)  # Add some variation
+                noise = noise.overlay(sine_wave)
+            
+            # Apply final volume adjustment
+            noise = noise + volume
+            
+            return noise
+            
+        except Exception as e:
+            print(f"White noise generation error: {e}")
+            return AudioSegment.silent(duration=duration_ms)
     
     def cleanup(self):
         """Clean up temporary files"""
         try:
             import shutil
-            if hasattr(self, 'temp_dir') and os.path.exists(self.temp_dir):
-                shutil.rmtree(self.temp_dir, ignore_errors=True)
+            shutil.rmtree(self.temp_dir, ignore_errors=True)
         except Exception:
             pass
     
-    def manual_cleanup(self):
-        """Manually clean up temporary files when explicitly called"""
-        self.cleanup()
-    
     def __del__(self):
         """Cleanup when object is destroyed"""
-        # Don't automatically cleanup on deletion to prevent file access issues
-        pass
+        self.cleanup()
