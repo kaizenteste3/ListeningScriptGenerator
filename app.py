@@ -156,7 +156,7 @@ def main():
                     text = st.text_area(
                         f"台詞 {i+1}",
                         value=line.get('text', ''),
-                        height=60,
+                        height=80,
                         key=f"edit_text_{i}"
                     )
                 
@@ -198,7 +198,7 @@ def main():
                     with col2:
                         new_text = st.text_area(
                             f"新しい台詞 {j+1}",
-                            height=60,
+                            height=80,
                             key=f"new_text_{j}"
                         )
                     
@@ -277,8 +277,9 @@ def main():
                         
                 except Exception as e:
                     error_msg = str(e)
-                    if "Azure Speech Services not configured" in error_msg:
-                        st.error("⚠️ Azure Speech Services の認証情報が設定されていません。上記のAPIキー入力欄でAzure Speech Servicesのキーとリージョンを入力してください。")
+                    if "Azure Speech Services not configured" in error_msg or "SPXERR_INVALID_ARG" in error_msg:
+                        st.error("⚠️ Azure Speech Services の認証情報が正しくありません。有効なAPIキーとリージョンを入力してください。")
+                        st.info("💡 Azure ポータルで Speech Services リソースを作成し、正しいキーとリージョンを確認してください。")
                     elif "429" in error_msg or "Too Many Requests" in error_msg:
                         st.error("⚠️ 音声生成サービスが一時的に利用制限に達しています。数分後に再度お試しください。")
                         st.info("💡 ヒント: しばらく待ってから「音声生成」ボタンを再度クリックしてください。")
