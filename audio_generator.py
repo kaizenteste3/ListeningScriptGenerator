@@ -23,7 +23,7 @@ class AudioGenerator:
         else:
             self.speech_config = None
         
-    def generate_conversation_audio(self, conversation, add_background=False, background_type=None, uploaded_background=None):
+    def generate_conversation_audio(self, conversation, add_background=False, background_type=None, uploaded_background=None, background_volume=-20):
         """
         Generate audio files from conversation script using Azure Speech Services
         
@@ -32,6 +32,7 @@ class AudioGenerator:
             add_background (bool): Whether to add background audio
             background_type (str): Type of background audio to add
             uploaded_background: Streamlit uploaded file object for custom background audio
+            background_volume (int): Volume adjustment for background audio in dB
             
         Returns:
             dict: Dictionary containing paths to generated audio files
@@ -104,21 +105,21 @@ class AudioGenerator:
             # Add background audio if requested
             if add_background:
                 if uploaded_background:
-                    print(f"Adding uploaded background audio")
+                    print(f"Adding uploaded background audio at {background_volume}dB")
                     background_audio = self._load_uploaded_background(
                         uploaded_background, len(combined_audio)
                     )
                     if background_audio:
-                        # Mix background at lower volume (-20dB)
-                        combined_audio = combined_audio.overlay(background_audio - 20)
+                        # Mix background at specified volume
+                        combined_audio = combined_audio.overlay(background_audio + background_volume)
                         print(f"Uploaded background audio added successfully")
                 elif background_type and background_type != "none":
-                    print(f"Adding generated background audio: {background_type}")
+                    print(f"Adding generated background audio: {background_type} at {background_volume}dB")
                     background_audio = self._generate_background_audio(
                         len(combined_audio), background_type
                     )
-                    # Mix background at lower volume (-20dB)
-                    combined_audio = combined_audio.overlay(background_audio - 20)
+                    # Mix background at specified volume
+                    combined_audio = combined_audio.overlay(background_audio + background_volume)
                     print(f"Generated background audio added successfully")
             
             # Export combined audio

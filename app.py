@@ -64,6 +64,17 @@ def main():
         disabled=not enable_background_audio
     )
     
+    # Background volume control
+    background_volume = st.sidebar.slider(
+        "背景音声の音量 (dB)",
+        min_value=-40,
+        max_value=0,
+        value=-20,
+        step=5,
+        disabled=not enable_background_audio,
+        help="背景音声の音量を調整します。負の値ほど小さくなります。"
+    )
+    
     if background_source == "生成された音声":
         background_type = st.sidebar.selectbox(
             "背景音声の種類",
@@ -142,7 +153,8 @@ def main():
                         script_data.get('conversation', []),
                         add_background=enable_background_audio,
                         background_type=background_type if enable_background_audio else None,
-                        uploaded_background=uploaded_background if enable_background_audio else None
+                        uploaded_background=uploaded_background if enable_background_audio else None,
+                        background_volume=background_volume if enable_background_audio else -20
                     )
                     
                     if audio_files:
@@ -170,33 +182,46 @@ def main():
             # Play combined conversation
             if 'combined' in audio_files:
                 st.write("**完全版会話音声**")
-                st.audio(audio_files['combined'])
-                
-                # Download button for combined audio
-                with open(audio_files['combined'], 'rb') as f:
-                    st.download_button(
-                        label="📥 完全版音声をダウンロード",
-                        data=f.read(),
-                        file_name=f"conversation_{script_data.get('title', 'untitled').replace(' ', '_')}.wav",
-                        mime="audio/wav"
-                    )
+                try:
+                    # Check if file exists before trying to display
+                    if os.path.exists(audio_files['combined']):
+                        st.audio(audio_files['combined'])
+                        
+                        # Download button for combined audio
+                        with open(audio_files['combined'], 'rb') as f:
+                            st.download_button(
+                                label="📥 完全版音声をダウンロード",
+                                data=f.read(),
+                                file_name=f"conversation_{script_data.get('title', 'untitled').replace(' ', '_')}.wav",
+                                mime="audio/wav"
+                            )
+                    else:
+                        st.error("音声ファイルが見つかりません。再度音声生成を行ってください。")
+                except Exception as e:
+                    st.error(f"音声ファイルの読み込みエラー: {str(e)}")
             
             # Individual speaker audio files
             if 'individual' in audio_files:
                 st.write("**個別音声ファイル**")
                 for speaker, file_path in audio_files['individual'].items():
                     st.write(f"**{speaker}の音声**")
-                    st.audio(file_path)
-                    
-                    # Download button for individual audio
-                    with open(file_path, 'rb') as f:
-                        st.download_button(
-                            label=f"📥 {speaker}の音声をダウンロード",
-                            data=f.read(),
-                            file_name=f"{speaker}_{script_data.get('title', 'untitled').replace(' ', '_')}.wav",
-                            mime="audio/wav",
-                            key=f"download_{speaker}"
-                        )
+                    try:
+                        if os.path.exists(file_path):
+                            st.audio(file_path)
+                            
+                            # Download button for individual audio
+                            with open(file_path, 'rb') as f:
+                                st.download_button(
+                                    label=f"📥 {speaker}の音声をダウンロード",
+                                    data=f.read(),
+                                    file_name=f"{speaker}_{script_data.get('title', 'untitled').replace(' ', '_')}.wav",
+                                    mime="audio/wav",
+                                    key=f"download_{speaker}"
+                                )
+                        else:
+                            st.error(f"{speaker}の音声ファイルが見つかりません。")
+                    except Exception as e:
+                        st.error(f"{speaker}の音声ファイル読み込みエラー: {str(e)}")
     
     # Footer
     st.markdown("---")
