@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.11"
 dependencies = [
+    "azure-cognitiveservices-speech>=1.44.0",
     "gtts>=2.5.4",
     "openai>=1.86.0",
     "pydub>=0.25.1",
