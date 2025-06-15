@@ -16,20 +16,41 @@ def main():
     
     # API Key input section
     st.header("🔑 API設定")
-    api_key = st.text_input(
-        "OpenAI API キーを入力してください",
-        type="password",
-        placeholder="sk-...",
-        help="OpenAIのAPIキーが必要です。https://platform.openai.com でアカウントを作成し、APIキーを取得してください。"
-    )
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        api_key = st.text_input(
+            "OpenAI API キーを入力してください",
+            type="password",
+            placeholder="sk-...",
+            help="OpenAIのAPIキーが必要です。https://platform.openai.com でアカウントを作成し、APIキーを取得してください。"
+        )
+    
+    with col2:
+        azure_speech_key = st.text_input(
+            "Azure Speech Services キーを入力してください",
+            type="password",
+            placeholder="Azure Speech Key",
+            help="Azure Speech Servicesのサブスクリプションキーが必要です。"
+        )
+        
+        azure_region = st.text_input(
+            "Azure リージョンを入力してください",
+            placeholder="例: japaneast",
+            help="Azure Speech Servicesのリージョンを入力してください（例: japaneast, eastus）"
+        )
     
     if not api_key:
         st.warning("⚠️ OpenAI API キーを入力してからスクリプト生成を行ってください。")
         st.stop()
     
+    if not azure_speech_key or not azure_region:
+        st.warning("⚠️ Azure Speech Services の認証情報を入力してから音声生成を行ってください。")
+    
     # Initialize generators
     script_gen = ScriptGenerator(api_key)
-    audio_gen = AudioGenerator()
+    audio_gen = AudioGenerator(azure_speech_key, azure_region)
     
     # Sidebar for options
     st.sidebar.header("⚙️ オプション設定")
@@ -112,7 +133,9 @@ def main():
                         
                 except Exception as e:
                     error_msg = str(e)
-                    if "429" in error_msg or "Too Many Requests" in error_msg:
+                    if "Azure Speech Services not configured" in error_msg:
+                        st.error("⚠️ Azure Speech Services の認証情報が設定されていません。上記のAPIキー入力欄でAzure Speech Servicesのキーとリージョンを入力してください。")
+                    elif "429" in error_msg or "Too Many Requests" in error_msg:
                         st.error("⚠️ 音声生成サービスが一時的に利用制限に達しています。数分後に再度お試しください。")
                         st.info("💡 ヒント: しばらく待ってから「音声生成」ボタンを再度クリックしてください。")
                     else:

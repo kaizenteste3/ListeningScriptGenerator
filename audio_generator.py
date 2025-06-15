@@ -1,19 +1,31 @@
 import os
 import tempfile
-from gtts import gTTS
 from pydub import AudioSegment
 from pydub.generators import Sine
 import random
 import time
+import azure.cognitiveservices.speech as speechsdk
 
 class AudioGenerator:
-    def __init__(self):
-        """Initialize the audio generator"""
+    def __init__(self, azure_speech_key=None, azure_region=None):
+        """Initialize the audio generator with Azure Speech Services"""
         self.temp_dir = tempfile.mkdtemp()
+        self.azure_speech_key = azure_speech_key
+        self.azure_region = azure_region
+        
+        if self.azure_speech_key and self.azure_region:
+            self.speech_config = speechsdk.SpeechConfig(
+                subscription=self.azure_speech_key, 
+                region=self.azure_region
+            )
+            # Use natural English voices
+            self.speech_config.speech_synthesis_voice_name = "en-US-AriaNeural"
+        else:
+            self.speech_config = None
         
     def generate_conversation_audio(self, conversation, add_background=False, background_type=None):
         """
-        Generate audio files from conversation script
+        Generate audio files from conversation script using Azure Speech Services
         
         Args:
             conversation (list): List of conversation lines with speaker and text
@@ -27,7 +39,11 @@ class AudioGenerator:
             individual_files = {}
             combined_segments = []
             
-            # Generate individual audio files for each speaker line
+            # Check if Azure Speech Services is configured
+            if not self.speech_config:
+                raise ValueError("Azure Speech Services not configured. Please set your Azure credentials.")
+            
+            # Generate individual audio files for each speaker line using Azure Speech
             for i, line in enumerate(conversation):
                 speaker = line.get('speaker', f'Speaker{i}')
                 text = line.get('text', '')
@@ -35,57 +51,46 @@ class AudioGenerator:
                 if not text.strip():
                     continue
                 
-                # Create TTS audio with retry logic and better error handling
-                max_retries = 3
-                retry_delay = 3
-                temp_file = os.path.join(self.temp_dir, f"{speaker}_{i}.mp3")
+                # Create a temporary WAV file for Azure Speech output
+                temp_wav_file = os.path.join(self.temp_dir, f"{speaker}_{i}_temp.wav")
                 
-                success = False
-                for attempt in range(max_retries):
-                    try:
-                        # Add small delay between requests to avoid rate limiting
-                        if attempt > 0:
-                            time.sleep(retry_delay + random.uniform(1, 3))
-                        
-                        tts = gTTS(text=text, lang='en', slow=False, timeout=30)
-                        tts.save(temp_file)
-                        success = True
-                        break
-                    except Exception as e:
-                        error_str = str(e).lower()
-                        if "429" in error_str or "too many requests" in error_str:
-                            if attempt < max_retries - 1:
-                                wait_time = retry_delay * (2 ** attempt) + random.uniform(2, 5)
-                                time.sleep(wait_time)
-                                continue
-                        if attempt < max_retries - 1:
-                            time.sleep(retry_delay)
-                            continue
-                        else:
-                            raise Exception(f"TTS service temporarily unavailable after {max_retries} attempts. Error: {str(e)}")
+                # Configure Azure Speech synthesis
+                audio_config = speechsdk.audio.AudioOutputConfig(filename=temp_wav_file)
+                synthesizer = speechsdk.SpeechSynthesizer(
+                    speech_config=self.speech_config, 
+                    audio_config=audio_config
+                )
                 
-                if not success:
-                    raise Exception("Failed to generate audio after all retry attempts")
+                # Synthesize speech
+                result = synthesizer.speak_text_async(text).get()
                 
-                # Convert to AudioSegment for processing
-                audio_segment = AudioSegment.from_mp3(temp_file)
+                if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+                    # Load the generated audio file
+                    audio_segment = AudioSegment.from_wav(temp_wav_file)
+                    
+                    # Add pause between speakers (1 second)
+                    if combined_segments:
+                        combined_segments.append(AudioSegment.silent(duration=1000))
+                    
+                    combined_segments.append(audio_segment)
+                    
+                    # Store individual file path
+                    individual_wav = os.path.join(self.temp_dir, f"{speaker}_{i}.wav")
+                    audio_segment.export(individual_wav, format="wav")
+                    individual_files[f"{speaker}_{i}"] = individual_wav
+                    
+                    # Clean up temporary WAV file
+                    if os.path.exists(temp_wav_file):
+                        os.remove(temp_wav_file)
+                    
+                elif result.reason == speechsdk.ResultReason.Canceled:
+                    cancellation_details = result.cancellation_details
+                    raise Exception(f"Speech synthesis canceled: {cancellation_details.reason}")
+                else:
+                    raise Exception(f"Speech synthesis failed: {result.reason}")
                 
-                # Add pause between speakers (1 second)
-                if combined_segments:
-                    combined_segments.append(AudioSegment.silent(duration=1000))
-                
-                combined_segments.append(audio_segment)
-                
-                # Add a small delay between TTS requests to avoid rate limiting
-                time.sleep(0.5)
-                
-                # Store individual file path
-                individual_wav = os.path.join(self.temp_dir, f"{speaker}_{i}.wav")
-                audio_segment.export(individual_wav, format="wav")
-                individual_files[f"{speaker}_{i}"] = individual_wav
-                
-                # Clean up temp MP3 file
-                os.remove(temp_file)
+                # Small delay to avoid overwhelming the service
+                time.sleep(0.1)
             
             if not combined_segments:
                 raise ValueError("No valid audio segments generated")
