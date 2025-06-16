@@ -11,7 +11,7 @@ def main():
         layout="wide"
     )
     
-    st.title("🎧 中学英語リスニング教材ジェネレーター２")
+    st.title("🎧 中学英語リスニング教材ジェネレーター３")
     st.markdown("シーンを入力して、中学英語レベルの会話スクリプトと音声ファイルを自動生成します。")
     
     # API Key input section
