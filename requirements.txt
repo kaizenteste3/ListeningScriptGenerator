@@ -33,7 +33,7 @@ pyarrow==20.0.0
 pydantic==2.11.7
 pydantic_core==2.33.2
 pydeck==0.9.1
-pydub==0.25.1
+pydub
 python-dateutil==2.9.0.post0
 pytz==2025.2
 referencing==0.36.2
