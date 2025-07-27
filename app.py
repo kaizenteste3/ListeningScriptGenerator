@@ -6,7 +6,7 @@ from audio_generator import AudioGenerator
 
 def main():
     st.set_page_config(
-        page_title="中学英語リスニング教材ジェネレーター",
+        page_title="中学英語リスニング教材ジェネレーター2",
         page_icon="🎧",
         layout="wide"
     )
